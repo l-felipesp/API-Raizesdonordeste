@@ -2,6 +2,7 @@ package com.raizesdonordeste.backend.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.raizesdonordeste.backend.domain.exception.EstoqueInsuficienteException;
 
 @Entity
 @Table(name = "estoque", uniqueConstraints = @UniqueConstraint(columnNames = {"unidade_id", "produto_id"}))
@@ -29,12 +30,18 @@ public class Estoque {
 
     public void debitar(int quantidadeAConsumir) {
         if (!temDisponibilidade(quantidadeAConsumir)) {
-            throw new IllegalStateException("Estoque insuficiente para o produto " + produto.getNome());
+            throw new EstoqueInsuficienteException(
+                "Estoque insuficiente para o produto " + produto.getNome()
+                + ". Disponível: " + this.quantidade);
         }
         this.quantidade -= quantidadeAConsumir;
     }
 
+    public void adicionar(int quantidadeAAdicionar) {
+        this.quantidade += quantidadeAAdicionar;
+    }
+
     public void estornar(int quantidadeADevolver) {
-        this.quantidade += quantidadeADevolver;
+        adicionar(quantidadeADevolver);
     }
 }
