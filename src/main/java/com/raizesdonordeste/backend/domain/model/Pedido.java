@@ -44,6 +44,9 @@ public class Pedido {
     @Builder.Default
     private List<ItemPedido> itens = new ArrayList<>();
 
+    @OneToOne(mappedBy = "pedido", fetch = FetchType.LAZY)
+    private Pagamento pagamento;
+
     @PrePersist
     void aoCriar() {
         this.criadoEm = LocalDateTime.now();
