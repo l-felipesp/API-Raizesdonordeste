@@ -11,7 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Pedidos", description = "Fluxo crítico: pedido, pagamento mock e status")
 @RestController
 @RequestMapping("/pedidos")
 public class PedidoController {

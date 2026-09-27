@@ -28,11 +28,12 @@ public class PedidoService {
     private final EstoqueRepository estoqueRepository;
     private final PagamentoRepository pagamentoRepository;
     private final PagamentoGatewayMockService gatewayPagamento;
+    private final AuditLogService auditLogService;
 
     public PedidoService(PedidoRepository pedidoRepository, UsuarioRepository usuarioRepository,
                           UnidadeRepository unidadeRepository, ProdutoRepository produtoRepository,
                           EstoqueRepository estoqueRepository, PagamentoRepository pagamentoRepository,
-                          PagamentoGatewayMockService gatewayPagamento) {
+                          PagamentoGatewayMockService gatewayPagamento, AuditLogService auditLogService) {
         this.pedidoRepository = pedidoRepository;
         this.usuarioRepository = usuarioRepository;
         this.unidadeRepository = unidadeRepository;
@@ -40,6 +41,7 @@ public class PedidoService {
         this.estoqueRepository = estoqueRepository;
         this.pagamentoRepository = pagamentoRepository;
         this.gatewayPagamento = gatewayPagamento;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -112,6 +114,9 @@ public class PedidoService {
         }
 
         pagamentoRepository.save(pagamento);
+        auditLogService.registrar("PEDIDO_CRIADO", "Pedido", pedido.getId(), 
+                "canal=" + pedido.getCanalPedido() + "; total=" + pedido.getTotal() + 
+                "; statusPagamento=" + pagamento.getStatus());
         return pedidoRepository.save(pedido);
     }
 
@@ -131,6 +136,7 @@ public class PedidoService {
     public Pedido atualizarStatus(Long id, StatusPedido novoStatus) {
         Pedido pedido = buscarPorId(id);
         pedido.atualizarStatus(novoStatus);
+        auditLogService.registrar("STATUS_ATUALIZADO", "Pedido", pedido.getId(), "novoStatus=" + novoStatus);
         return pedidoRepository.save(pedido);
     }
 }

@@ -21,12 +21,14 @@ public class EstoqueService {
     private final EstoqueRepository estoqueRepository;
     private final UnidadeRepository unidadeRepository;
     private final ProdutoRepository produtoRepository;
+    private final AuditLogService auditLogService;
 
     public EstoqueService(EstoqueRepository estoqueRepository, UnidadeRepository unidadeRepository,
-                           ProdutoRepository produtoRepository) {
+                           ProdutoRepository produtoRepository, AuditLogService auditLogService) {
         this.estoqueRepository = estoqueRepository;
         this.unidadeRepository = unidadeRepository;
         this.produtoRepository = produtoRepository;
+        this.auditLogService = auditLogService;
     }
 
     public List<Estoque> listarPorUnidade(Long unidadeId) {
@@ -63,6 +65,8 @@ public class EstoqueService {
             case ENTRADA -> estoque.adicionar(request.quantidade());
             case SAIDA -> estoque.debitar(request.quantidade());
         }
+        auditLogService.registrar("ESTOQUE_MOVIMENTADO", "Estoque", estoque.getId(), 
+                "tipo=" + request.tipo() + "; quantidade=" + request.quantidade());
         return estoqueRepository.save(estoque);
     }
 }
