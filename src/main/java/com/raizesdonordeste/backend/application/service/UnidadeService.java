@@ -6,7 +6,6 @@ import com.raizesdonordeste.backend.domain.model.Unidade;
 import com.raizesdonordeste.backend.infrastructure.persistence.EstoqueRepository;
 import com.raizesdonordeste.backend.infrastructure.persistence.UnidadeRepository;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 
 @Service
@@ -34,7 +33,7 @@ public class UnidadeService {
     }
 
     public List<ItemCardapioDTO> consultarCardapio(Long unidadeId) {
-        buscarPorId(unidadeId); // valida que a unidade existe (senão já lança 404 aqui)
+        buscarPorId(unidadeId);
         return estoqueRepository.findByUnidadeId(unidadeId).stream()
                 .filter(e -> e.getQuantidade() > 0)
                 .map(e -> new ItemCardapioDTO(

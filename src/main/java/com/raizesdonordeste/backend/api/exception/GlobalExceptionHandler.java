@@ -3,7 +3,6 @@ package com.raizesdonordeste.backend.api.exception;
 import com.raizesdonordeste.backend.api.dto.ErroResponse;
 import com.raizesdonordeste.backend.domain.exception.RecursoNaoEncontradoException;
 import com.raizesdonordeste.backend.domain.exception.RegraDeNegocioException;
-
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.List;
 import com.raizesdonordeste.backend.infrastructure.payment.GatewayIndisponivelException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -34,7 +34,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponse> corpoInvalido(HttpMessageNotReadableException ex, HttpServletRequest req) {
         return ResponseEntity.badRequest().body(
                 ErroResponse.de("REQUISICAO_INVALIDA",
-                        "Corpo da requisição malformado ou com valor não aceito (verifique enums como canalPedido).",
+                        "Corpo da requisição malformado ou com valor não aceito.",
                         req.getRequestURI()));
     }
 
@@ -73,7 +73,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponse> inesperado(Exception ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ErroResponse.de("ERRO_INTERNO",
-                        "Ocorreu um erro inesperado. Contate o suporte informando o requestId.",
+                        "Ocorreu um erro inesperado",
                         req.getRequestURI()));
     }
 
@@ -81,5 +81,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponse> gatewayIndisponivel(GatewayIndisponivelException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
                 ErroResponse.de("GATEWAY_INDISPONIVEL", ex.getMessage(), req.getRequestURI()));
-}
+        }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+        public ResponseEntity<ErroResponse> integridade(DataIntegrityViolationException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                ErroResponse.de("VIOLACAO_DE_INTEGRIDADE",
+                        "A operação viola uma regra de integridade dos dados (registro duplicado ou valor não permitido).",
+                        req.getRequestURI()));
+        }
 }

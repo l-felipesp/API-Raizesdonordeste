@@ -22,5 +22,5 @@ public class Unidade {
     private String estado;
 
     @Column(nullable = false)
-    private String tipo; // "COMPLETA" ou "REDUZIDA" — string simples aqui é suficiente, não é regra crítica
+    private String tipo;
 }

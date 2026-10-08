@@ -12,7 +12,6 @@ import com.raizesdonordeste.backend.infrastructure.persistence.ProdutoRepository
 import com.raizesdonordeste.backend.infrastructure.persistence.UnidadeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 
 @Service
