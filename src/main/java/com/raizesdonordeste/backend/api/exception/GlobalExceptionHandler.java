@@ -13,8 +13,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 import java.util.List;
+import com.raizesdonordeste.backend.infrastructure.payment.GatewayIndisponivelException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -76,4 +76,10 @@ public class GlobalExceptionHandler {
                         "Ocorreu um erro inesperado. Contate o suporte informando o requestId.",
                         req.getRequestURI()));
     }
+
+    @ExceptionHandler(GatewayIndisponivelException.class)
+    public ResponseEntity<ErroResponse> gatewayIndisponivel(GatewayIndisponivelException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                ErroResponse.de("GATEWAY_INDISPONIVEL", ex.getMessage(), req.getRequestURI()));
+}
 }

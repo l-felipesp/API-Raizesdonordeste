@@ -41,7 +41,12 @@ public class EstoqueService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Unidade não encontrada: id " + request.unidadeId()));
         Produto produto = produtoRepository.findById(request.produtoId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Produto não encontrado: id " + request.produtoId()));
-
+        if ("REDUZIDA".equalsIgnoreCase(unidade.getTipo())
+                        && produto.getCategoria() != null
+                        && "Pratos Quentes".equalsIgnoreCase(produto.getCategoria())) {
+                throw new RegraDeNegocioException("UNIDADE_SEM_SUPORTE",
+                "Unidades do tipo REDUZIDA não podem oferecer produtos da categoria 'Pratos Quentes' (requer cozinha completa).");
+}
         estoqueRepository.findByUnidadeIdAndProdutoId(unidade.getId(), produto.getId())
                 .ifPresent(e -> {
                     throw new RegraDeNegocioException("ESTOQUE_JA_EXISTE",

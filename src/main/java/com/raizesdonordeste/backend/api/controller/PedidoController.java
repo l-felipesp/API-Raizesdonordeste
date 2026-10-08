@@ -48,4 +48,11 @@ public class PedidoController {
     public PedidoResponse atualizarStatus(@PathVariable Long id, @Valid @RequestBody AtualizarStatusRequest request) {
         return PedidoResponse.from(pedidoService.atualizarStatus(id, request.novoStatus()));
     }
+
+    @PostMapping("/{id}/pagamento/retentar")
+    @PreAuthorize("hasAnyRole('CLIENTE', 'ATENDENTE')")
+    public PedidoResponse retentarPagamento(@PathVariable Long id,
+                                        @Valid @RequestBody RetentarPagamentoRequest request) {
+        return PedidoResponse.from(pedidoService.retentarPagamento(id, request.formaPagamento()));
+    }
 }

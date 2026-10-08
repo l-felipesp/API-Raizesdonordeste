@@ -67,6 +67,11 @@ public class Pedido {
     }
 
     public void atualizarStatus(StatusPedido novoStatus) {
+    if (!this.status.podeTransicionarPara(novoStatus)) {
+        throw new com.raizesdonordeste.backend.domain.exception.RegraDeNegocioException(
+                "TRANSICAO_INVALIDA",
+                "Não é possível mudar o status de " + this.status + " para " + novoStatus + ".");
+        }
         this.status = novoStatus;
     }
 }

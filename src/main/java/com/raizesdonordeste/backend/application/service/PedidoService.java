@@ -3,10 +3,13 @@ package com.raizesdonordeste.backend.application.service;
 import com.raizesdonordeste.backend.api.dto.PedidoItemRequest;
 import com.raizesdonordeste.backend.api.dto.PedidoRequest;
 import com.raizesdonordeste.backend.domain.enums.CanalPedido;
+import com.raizesdonordeste.backend.domain.enums.StatusPagamento;
 import com.raizesdonordeste.backend.domain.enums.StatusPedido;
+import com.raizesdonordeste.backend.domain.exception.EstoqueInsuficienteException;
 import com.raizesdonordeste.backend.domain.exception.RecursoNaoEncontradoException;
 import com.raizesdonordeste.backend.domain.exception.RegraDeNegocioException;
 import com.raizesdonordeste.backend.domain.model.*;
+import com.raizesdonordeste.backend.infrastructure.payment.GatewayIndisponivelException;
 import com.raizesdonordeste.backend.infrastructure.payment.PagamentoGatewayMockService;
 import com.raizesdonordeste.backend.infrastructure.payment.ResultadoPagamentoMock;
 import com.raizesdonordeste.backend.infrastructure.persistence.*;
@@ -58,21 +61,14 @@ public class PedidoService {
                 .canalPedido(request.canalPedido())
                 .build();
 
-        List<Estoque> estoquesAfetados = new ArrayList<>();
-
         for (PedidoItemRequest itemReq : request.itens()) {
             Produto produto = produtoRepository.findById(itemReq.produtoId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException(
                             "Produto não encontrado: id " + itemReq.produtoId()));
 
-            Estoque estoque = estoqueRepository.findByUnidadeIdAndProdutoId(unidade.getId(), produto.getId())
+            estoqueRepository.findByUnidadeIdAndProdutoId(unidade.getId(), produto.getId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException(
                             "Produto '" + produto.getNome() + "' não está disponível nesta unidade."));
-
-            if (!estoque.temDisponibilidade(itemReq.quantidade())) {
-                throw new com.raizesdonordeste.backend.domain.exception.EstoqueInsuficienteException(
-                        "Estoque insuficiente para '" + produto.getNome() + "'. Disponível: " + estoque.getQuantidade());
-            }
 
             ItemPedido item = ItemPedido.builder()
                     .produto(produto)
@@ -80,44 +76,85 @@ public class PedidoService {
                     .precoUnitario(produto.getPreco())
                     .build();
             pedido.adicionarItem(item);
-            estoquesAfetados.add(estoque);
         }
 
         pedido.calcularTotal();
-
-        for (int i = 0; i < pedido.getItens().size(); i++) {
-            Estoque estoque = estoquesAfetados.get(i);
-            estoque.debitar(pedido.getItens().get(i).getQuantidade());
-            estoqueRepository.save(estoque);
-        }
-
         pedido = pedidoRepository.save(pedido);
 
-        ResultadoPagamentoMock resultado = gatewayPagamento.processar(pedido.getTotal(), request.formaPagamento());
+        auditLogService.registrar("PEDIDO_CRIADO", "Pedido", pedido.getId(),
+                "canal=" + pedido.getCanalPedido() + "; total=" + pedido.getTotal());
 
-        Pagamento pagamento = Pagamento.builder()
-                .pedido(pedido)
-                .formaPagamento(request.formaPagamento())
-                .build();
+        return processarPagamento(pedido, request.formaPagamento());
+    }
 
-        if (resultado.aprovado()) {
-            pagamento.aprovar();
-            pedido.atualizarStatus(StatusPedido.EM_PREPARO);
-        } else {
-            pagamento.recusar();
-            pedido.atualizarStatus(StatusPedido.PAGAMENTO_RECUSADO);
-            for (int i = 0; i < pedido.getItens().size(); i++) {
-                Estoque estoque = estoquesAfetados.get(i);
-                estoque.estornar(pedido.getItens().get(i).getQuantidade());
-                estoqueRepository.save(estoque);
+    @Transactional
+    public Pedido retentarPagamento(Long pedidoId, String novaFormaPagamento) {
+        Pedido pedido = buscarPorId(pedidoId);
+
+        if (pedido.getStatus() != StatusPedido.AGUARDANDO_PAGAMENTO) {
+            throw new RegraDeNegocioException("PEDIDO_JA_PROCESSADO",
+                "Este pedido já teve o pagamento processado (status atual: " + pedido.getStatus() + "). Não é possível retentar.");
+        }
+
+        auditLogService.registrar("PAGAMENTO_RETENTADO", "Pedido", pedido.getId(),
+            "novaFormaPagamento=" + novaFormaPagamento);
+
+        return processarPagamento(pedido, novaFormaPagamento);
+    }
+
+    private Pedido processarPagamento(Pedido pedido, String formaPagamento) {
+        List<Estoque> estoquesAfetados = new ArrayList<>();
+        for (ItemPedido item : pedido.getItens()) {
+            Estoque estoque = estoqueRepository
+                .findByUnidadeIdAndProdutoId(pedido.getUnidade().getId(), item.getProduto().getId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException(
+                        "Produto '" + item.getProduto().getNome() + "' não está mais disponível nesta unidade."));
+        if (!estoque.temDisponibilidade(item.getQuantidade())) {
+            throw new EstoqueInsuficienteException(
+                    "Estoque insuficiente para '" + item.getProduto().getNome() + "'. Disponível: " + estoque.getQuantidade());
+        }
+        estoquesAfetados.add(estoque);
+        }
+
+        for (int i = 0; i < pedido.getItens().size(); i++) {
+            estoquesAfetados.get(i).debitar(pedido.getItens().get(i).getQuantidade());
+            estoqueRepository.save(estoquesAfetados.get(i));
+        }
+
+        Pagamento pagamento = pagamentoRepository.findByPedidoId(pedido.getId())
+            .orElseGet(() -> Pagamento.builder().pedido(pedido).formaPagamento(formaPagamento).build());
+        pagamento.setFormaPagamento(formaPagamento);
+
+        try {
+            ResultadoPagamentoMock resultado = gatewayPagamento.processar(pedido.getTotal(), formaPagamento);
+
+            if (resultado.aprovado()) {
+                pagamento.aprovar();
+                pedido.atualizarStatus(StatusPedido.EM_PREPARO);
+            } else {
+                pagamento.recusar();
+                pedido.atualizarStatus(StatusPedido.PAGAMENTO_RECUSADO);
+                estornarEstoque(estoquesAfetados, pedido);
             }
+        } catch (GatewayIndisponivelException ex) {
+            pagamento.setStatus(StatusPagamento.PENDENTE);
+            estornarEstoque(estoquesAfetados, pedido);
         }
 
         pagamentoRepository.save(pagamento);
-        auditLogService.registrar("PEDIDO_CRIADO", "Pedido", pedido.getId(), 
-                "canal=" + pedido.getCanalPedido() + "; total=" + pedido.getTotal() + 
-                "; statusPagamento=" + pagamento.getStatus());
+        pedido.setPagamento(pagamento);
+
+        auditLogService.registrar("PAGAMENTO_PROCESSADO", "Pedido", pedido.getId(),
+            "formaPagamento=" + formaPagamento + "; resultado=" + pagamento.getStatus());
+
         return pedidoRepository.save(pedido);
+    }
+
+    private void estornarEstoque(List<Estoque> estoques, Pedido pedido) {
+        for (int i = 0; i < pedido.getItens().size(); i++) {
+            estoques.get(i).estornar(pedido.getItens().get(i).getQuantidade());
+            estoqueRepository.save(estoques.get(i));
+        }
     }
 
     public Page<Pedido> listar(CanalPedido canalPedido, Pageable pageable) {
@@ -134,9 +171,14 @@ public class PedidoService {
 
     @Transactional
     public Pedido atualizarStatus(Long id, StatusPedido novoStatus) {
+        if (novoStatus == StatusPedido.EM_PREPARO || novoStatus == StatusPedido.PAGAMENTO_RECUSADO) {
+            throw new RegraDeNegocioException("TRANSICAO_RESERVADA_AO_SISTEMA",
+                "O status " + novoStatus + " só pode ser definido automaticamente pelo retorno do gateway de pagamento.");
+        }
         Pedido pedido = buscarPorId(id);
         pedido.atualizarStatus(novoStatus);
+        pedidoRepository.save(pedido);
         auditLogService.registrar("STATUS_ATUALIZADO", "Pedido", pedido.getId(), "novoStatus=" + novoStatus);
-        return pedidoRepository.save(pedido);
+        return pedido;
     }
 }
