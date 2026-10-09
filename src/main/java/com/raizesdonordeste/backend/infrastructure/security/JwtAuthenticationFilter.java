@@ -13,7 +13,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-
 import java.io.IOException;
 
 @Component
@@ -54,7 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         } catch (JwtException | UsernameNotFoundException ex) {
             // token inválido/expirado ou usuário não existe mais: segue sem autenticar,
-            // o endpoint protegido vai barrar com 401 mais adiante na cadeia
+            // o endpoint protegido vai barrar com 401
         }
 
         filterChain.doFilter(request, response);

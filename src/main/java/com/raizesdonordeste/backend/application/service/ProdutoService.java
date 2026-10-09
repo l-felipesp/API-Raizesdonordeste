@@ -32,6 +32,8 @@ public class ProdutoService {
                 .descricao(request.descricao())
                 .preco(request.preco())
                 .categoria(request.categoria())
+                .disponivelDe(request.disponivelDe())
+                .disponivelAte(request.disponivelAte())
                 .build();
         return produtoRepository.save(produto);
     }
@@ -42,6 +44,8 @@ public class ProdutoService {
         produto.setDescricao(request.descricao());
         produto.setPreco(request.preco());
         produto.setCategoria(request.categoria());
+        produto.setDisponivelDe(request.disponivelDe());
+        produto.setDisponivelAte(request.disponivelAte());
         return produtoRepository.save(produto);
     }
 }

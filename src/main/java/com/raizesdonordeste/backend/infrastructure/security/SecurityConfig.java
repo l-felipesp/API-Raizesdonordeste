@@ -58,14 +58,14 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(ex -> ex
-            .authenticationEntryPoint(authenticationEntryPoint)
-            .accessDeniedHandler(accessDeniedHandler)
+                .authenticationEntryPoint(authenticationEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler)
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/usuarios").permitAll()
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
-                .requestMatchers(HttpMethod.GET, "/produtos/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/unidades/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/produtos/**").permitAll()
                 .anyRequest().authenticated()

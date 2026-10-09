@@ -10,6 +10,7 @@ import java.util.List;
 public record PedidoRequest(
         @NotNull Long unidadeId,
         @NotNull CanalPedido canalPedido,
+        Long clienteId,
         @NotEmpty @Valid List<PedidoItemRequest> itens,
         @NotBlank String formaPagamento
 ) {}

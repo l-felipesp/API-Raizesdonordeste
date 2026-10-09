@@ -10,9 +10,11 @@ import com.raizesdonordeste.backend.domain.model.Unidade;
 import com.raizesdonordeste.backend.infrastructure.persistence.EstoqueRepository;
 import com.raizesdonordeste.backend.infrastructure.persistence.ProdutoRepository;
 import com.raizesdonordeste.backend.infrastructure.persistence.UnidadeRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
+
 
 @Service
 public class EstoqueService {
@@ -30,8 +32,11 @@ public class EstoqueService {
         this.auditLogService = auditLogService;
     }
 
-    public List<Estoque> listarPorUnidade(Long unidadeId) {
-        return estoqueRepository.findByUnidadeId(unidadeId);
+    public Page<Estoque> listarPorUnidade(Long unidadeId, Pageable pageable) {
+        if (!unidadeRepository.existsById(unidadeId)) {
+            throw new RecursoNaoEncontradoException("Unidade não encontrada: id " + unidadeId);
+        }
+        return estoqueRepository.findByUnidadeId(unidadeId, pageable);
     }
 
     @Transactional
