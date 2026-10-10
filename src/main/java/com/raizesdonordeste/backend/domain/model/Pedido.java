@@ -32,7 +32,8 @@ public class Pedido {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private StatusPedido status;
+    @Builder.Default
+    private StatusPedido status = StatusPedido.AGUARDANDO_PAGAMENTO;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal total;
