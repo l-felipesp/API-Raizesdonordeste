@@ -1,0 +1,2957 @@
+openapi: 3.1.0
+info:
+  title: Raízes do Nordeste — API Back-end
+  description: |
+    API REST do fluxo de pedidos, estoque e pagamento mock da rede Raízes do Nordeste. Trilha Back-end — Projeto Multidisciplinar.
+
+    **Como autenticar:** chame `POST /auth/login`, copie o `accessToken` da resposta, clique em **Authorize** e cole o token (sem a palavra Bearer). Endpoints sem cadeado são públicos.
+
+    **Usuários do seed** (senha `Senha@123` para todos): `admin@raizes.com` (ADMIN), `gerente@raizes.com` (GERENTE), `atendente@raizes.com` (ATENDENTE) e `cliente@raizes.com` (CLIENTE).
+
+    **Pagamento mock:** total a partir de R$ 500,00 é recusado; `formaPagamento` igual a `PAGAMENTO_INDISPONIVEL` simula falha de comunicação com o gateway; os demais casos são aprovados.
+
+    **Listagens:** paginadas com `page` (a partir de 1), `limit` (1 a 100) e `sort` (`campo` ou `campo,asc|desc`).
+
+    **Erros:** todas as falhas seguem o mesmo formato JSON, com `error`, `message`, `details`, `timestamp`, `path` e `requestId`.
+  version: v1
+servers:
+- url: http://localhost:8080
+  description: Generated server url
+security:
+- bearerAuth: []
+tags:
+- name: Produtos
+  description: Cadastro de produtos
+- name: Pedidos
+  description: "Fluxo crítico: pedido, pagamento mock e status"
+- name: Estoque
+  description: Controle de estoque por unidade
+- name: Relatórios
+  description: Indicadores de vendas para a matriz
+- name: Autenticação
+  description: Login e emissão de token JWT
+- name: Unidades
+  description: Unidades da rede e cardápio por unidade
+- name: Usuários
+  description: Cadastro de clientes e direitos do titular (LGPD)
+- name: Auditoria
+  description: Consulta de logs de ações sensíveis
+paths:
+  /produtos/{id}:
+    get:
+      tags:
+      - Produtos
+      summary: Consultar produto
+      description: Público.
+      operationId: buscar
+      parameters:
+      - name: id
+        in: path
+        description: Id do produto
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Produto encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProdutoResponse"
+              examples:
+                Produto:
+                  description: Produto
+                  value:
+                    id: 1
+                    nome: Tapioca de Queijo Coalho
+                    descricao: Tapioca recheada com queijo coalho
+                    preco: 12.5
+                    categoria: Salgados
+                    disponivelDe: null
+                    disponivelAte: null
+                Produto sazonal:
+                  description: Produto sazonal
+                  value:
+                    id: 7
+                    nome: Canjica Junina
+                    descricao: Canjica de milho com canela
+                    preco: 11.9
+                    categoria: Doces
+                    disponivelDe: 2026-06-01
+                    disponivelAte: 2026-07-31
+        "404":
+          description: Produto inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrado:
+                  description: Não encontrado
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Produto não encontrado: id 999"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+      security: []
+    put:
+      tags:
+      - Produtos
+      summary: Atualizar produto
+      description: Perfis GERENTE ou ADMIN.
+      operationId: atualizar
+      parameters:
+      - name: id
+        in: path
+        description: Id do produto
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProdutoRequest"
+        required: true
+      responses:
+        "200":
+          description: Produto atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProdutoResponse"
+              examples:
+                Produto:
+                  description: Produto
+                  value:
+                    id: 1
+                    nome: Tapioca de Queijo Coalho
+                    descricao: Tapioca recheada com queijo coalho
+                    preco: 12.5
+                    categoria: Salgados
+                    disponivelDe: null
+                    disponivelAte: null
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "404":
+          description: Produto inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrado:
+                  description: Não encontrado
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Produto não encontrado: id 999"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /usuarios:
+    post:
+      tags:
+      - Usuários
+      summary: Cadastrar cliente
+      description: "Público. Cria um usuário com perfil CLIENTE. aceitaFidelizacao\
+        \ é opcional (LGPD: consentimento livre); quando informado, a decisão é registrada\
+        \ com data e hora."
+      operationId: cadastrar
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CadastroUsuarioRequest"
+        required: true
+      responses:
+        "201":
+          description: Cliente cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioResumoDTO"
+              examples:
+                Cadastro:
+                  description: Cadastro
+                  value:
+                    id: 5
+                    nome: Maria Silva
+                    perfil: CLIENTE
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "409":
+          description: E-mail já cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                E-mail duplicado:
+                  description: E-mail duplicado
+                  value:
+                    error: EMAIL_JA_CADASTRADO
+                    message: Já existe um usuário cadastrado com este e-mail.
+                    details:
+                    - field: email
+                      issue: E-mail já cadastrado
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /usuarios
+                    requestId: 1c2d3e4f-5a6b-4c7d-8e8f-9a0b1c2d3e4f
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                E-mail inválido:
+                  description: E-mail inválido
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: email
+                      issue: deve ser um endereço de e-mail bem formado
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /usuarios
+                    requestId: 6f7a8b9c-0d1e-4f2a-8b3c-4d5e6f7a8b9c
+      security: []
+  /unidades:
+    get:
+      tags:
+      - Unidades
+      summary: Listar unidades
+      description: Público. Listagem paginada.
+      operationId: listar
+      parameters:
+      - name: page
+        in: query
+        description: "Página, começando em 1"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+        example: 1
+      - name: limit
+        in: query
+        description: "Itens por página, de 1 a 100"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+        example: 10
+      - name: sort
+        in: query
+        description: "Ordenação: campo ou campo,asc|desc. Campos: id, nome, cidade,\
+          \ estado, tipo"
+        required: false
+        schema:
+          type: string
+        example: "nome,asc"
+      responses:
+        "200":
+          description: Página de unidades
+          content:
+            application/json:
+              examples:
+                Unidades:
+                  description: Unidades
+                  value:
+                    itens:
+                    - id: 1
+                      nome: Raízes Recife Centro
+                      cidade: Recife
+                      estado: PE
+                      tipo: COMPLETA
+                    - id: 2
+                      nome: Raízes Quiosque Shopping
+                      cidade: Recife
+                      estado: PE
+                      tipo: REDUZIDA
+                    page: 1
+                    limit: 2
+                    totalItens: 3
+                    totalPaginas: 2
+        "400":
+          description: Paginação ou ordenação inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                page inválido:
+                  description: page inválido
+                  value:
+                    error: PARAMETRO_INVALIDO
+                    message: A página deve ser maior ou igual a 1.
+                    details:
+                    - field: page
+                      issue: A página deve ser maior ou igual a 1.
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /produtos
+                    requestId: 8b9c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+      security: []
+    post:
+      tags:
+      - Unidades
+      summary: Cadastrar unidade
+      description: Perfis GERENTE ou ADMIN. O tipo deve ser COMPLETA ou REDUZIDA.
+      operationId: criar
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnidadeRequest"
+        required: true
+      responses:
+        "201":
+          description: Unidade cadastrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnidadeResponse"
+              examples:
+                Unidade:
+                  description: Unidade
+                  value:
+                    id: 1
+                    nome: Raízes Recife Centro
+                    cidade: Recife
+                    estado: PE
+                    tipo: COMPLETA
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /produtos:
+    get:
+      tags:
+      - Produtos
+      summary: Listar produtos
+      description: Público. Listagem paginada de todos os produtos da rede.
+      operationId: listar_1
+      parameters:
+      - name: page
+        in: query
+        description: "Página, começando em 1"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+        example: 1
+      - name: limit
+        in: query
+        description: "Itens por página, de 1 a 100"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+        example: 10
+      - name: sort
+        in: query
+        description: "Ordenação: campo ou campo,asc|desc. Campos: id, nome, preco,\
+          \ categoria"
+        required: false
+        schema:
+          type: string
+        example: "preco,desc"
+      responses:
+        "200":
+          description: Página de produtos
+          content:
+            application/json:
+              examples:
+                Produtos:
+                  description: Produtos
+                  value:
+                    itens:
+                    - id: 6
+                      nome: Baião de Dois
+                      descricao: Prato quente tradicional
+                      preco: 32.0
+                      categoria: Pratos Quentes
+                      disponivelDe: null
+                      disponivelAte: null
+                    page: 1
+                    limit: 1
+                    totalItens: 7
+                    totalPaginas: 7
+        "400":
+          description: Paginação ou ordenação inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                page inválido:
+                  description: page inválido
+                  value:
+                    error: PARAMETRO_INVALIDO
+                    message: A página deve ser maior ou igual a 1.
+                    details:
+                    - field: page
+                      issue: A página deve ser maior ou igual a 1.
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /produtos
+                    requestId: 8b9c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+      security: []
+    post:
+      tags:
+      - Produtos
+      summary: Cadastrar produto
+      description: Perfis GERENTE ou ADMIN. disponivelDe e disponivelAte (yyyy-MM-dd)
+        são opcionais e definem o período de produtos sazonais.
+      operationId: criar_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProdutoRequest"
+        required: true
+      responses:
+        "201":
+          description: Produto cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProdutoResponse"
+              examples:
+                Produto:
+                  description: Produto
+                  value:
+                    id: 1
+                    nome: Tapioca de Queijo Coalho
+                    descricao: Tapioca recheada com queijo coalho
+                    preco: 12.5
+                    categoria: Salgados
+                    disponivelDe: null
+                    disponivelAte: null
+                Produto sazonal:
+                  description: Produto sazonal
+                  value:
+                    id: 7
+                    nome: Canjica Junina
+                    descricao: Canjica de milho com canela
+                    preco: 11.9
+                    categoria: Doces
+                    disponivelDe: 2026-06-01
+                    disponivelAte: 2026-07-31
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /pedidos:
+    get:
+      tags:
+      - Pedidos
+      summary: Listar pedidos
+      description: Qualquer perfil autenticado. Filtros opcionais por canalPedido
+        e status. O perfil CLIENTE vê apenas os próprios pedidos.
+      operationId: listar_2
+      parameters:
+      - name: canalPedido
+        in: query
+        description: Filtra pelo canal de origem
+        required: false
+        schema:
+          type: string
+          enum:
+          - APP
+          - TOTEM
+          - BALCAO
+          - PICKUP
+          - WEB
+        example: APP
+      - name: status
+        in: query
+        description: Filtra pelo status
+        required: false
+        schema:
+          type: string
+          enum:
+          - AGUARDANDO_PAGAMENTO
+          - EM_PREPARO
+          - PRONTO
+          - ENTREGUE
+          - CANCELADO
+          - PAGAMENTO_RECUSADO
+        example: EM_PREPARO
+      - name: page
+        in: query
+        description: "Página, começando em 1"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+        example: 1
+      - name: limit
+        in: query
+        description: "Itens por página, de 1 a 100"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+        example: 10
+      - name: sort
+        in: query
+        description: "Ordenação: campo ou campo,asc|desc. Campos: id, criadoEm, total,\
+          \ status, canalPedido"
+        required: false
+        schema:
+          type: string
+        example: "criadoEm,desc"
+      responses:
+        "200":
+          description: Página de pedidos
+          content:
+            application/json:
+              examples:
+                Pedidos:
+                  description: Pedidos
+                  value:
+                    itens:
+                    - id: 10
+                      canalPedido: APP
+                      status: EM_PREPARO
+                      total: 25.0
+                      criadoEm: 2026-10-09T10:00:00
+                      itens:
+                      - produtoId: 1
+                        nomeProduto: Tapioca de Queijo Coalho
+                        quantidade: 2
+                        precoUnitario: 12.5
+                        subtotal: 25.0
+                      pagamento:
+                        status: APROVADO
+                        formaPagamento: PIX
+                    page: 1
+                    limit: 10
+                    totalItens: 1
+                    totalPaginas: 1
+        "400":
+          description: "Filtro, paginação ou ordenação inválidos"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Status inválido:
+                  description: Status inválido
+                  value:
+                    error: PARAMETRO_INVALIDO
+                    message: Parâmetro com valor ou formato inválido.
+                    details:
+                    - field: status
+                      issue: "Valor 'XYZ' inválido. Valores aceitos: [AGUARDANDO_PAGAMENTO,\
+                        \ EM_PREPARO, PRONTO, ENTREGUE, CANCELADO, PAGAMENTO_RECUSADO]"
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 9c0d1e2f-3a4b-4c5d-8e6f-7a8b9c0d1e2f
+                page inválido:
+                  description: page inválido
+                  value:
+                    error: PARAMETRO_INVALIDO
+                    message: A página deve ser maior ou igual a 1.
+                    details:
+                    - field: page
+                      issue: A página deve ser maior ou igual a 1.
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /produtos
+                    requestId: 8b9c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+    post:
+      tags:
+      - Pedidos
+      summary: Criar pedido (fluxo crítico)
+      description: "Perfis CLIENTE ou ATENDENTE. Valida itens, estoque e período de\
+        \ disponibilidade, calcula o total no servidor, reserva o estoque e solicita\
+        \ o pagamento ao gateway mock. Regras do mock: total a partir de R$ 500,00\
+        \ é recusado (estoque devolvido, status PAGAMENTO_RECUSADO); formaPagamento\
+        \ PAGAMENTO_INDISPONIVEL simula falha de comunicação (status AGUARDANDO_PAGAMENTO,\
+        \ permite nova tentativa); nos demais casos o pagamento é aprovado (status\
+        \ EM_PREPARO). clienteId é opcional e serve para o ATENDENTE registrar um\
+        \ pedido de balcão em nome de um cliente."
+      operationId: criar_2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PedidoRequest"
+            examples:
+              App - pagamento aprovado:
+                description: App - pagamento aprovado
+                value:
+                  unidadeId: 1
+                  canalPedido: APP
+                  formaPagamento: PIX
+                  itens:
+                  - produtoId: 1
+                    quantidade: 2
+              Totem - pagamento recusado (total >= R$ 500):
+                description: Totem - pagamento recusado (total >= R$ 500)
+                value:
+                  unidadeId: 1
+                  canalPedido: TOTEM
+                  formaPagamento: CARTAO
+                  itens:
+                  - produtoId: 1
+                    quantidade: 45
+              Web - falha de comunicação com o gateway:
+                description: Web - falha de comunicação com o gateway
+                value:
+                  unidadeId: 1
+                  canalPedido: WEB
+                  formaPagamento: PAGAMENTO_INDISPONIVEL
+                  itens:
+                  - produtoId: 1
+                    quantidade: 1
+              Balcão - atendente em nome de um cliente:
+                description: Balcão - atendente em nome de um cliente
+                value:
+                  unidadeId: 1
+                  canalPedido: BALCAO
+                  clienteId: 4
+                  formaPagamento: DINHEIRO
+                  itens:
+                  - produtoId: 2
+                    quantidade: 1
+                  - produtoId: 4
+                    quantidade: 1
+        required: true
+      responses:
+        "201":
+          description: Pedido criado; o status reflete o retorno do pagamento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PedidoResponse"
+              examples:
+                Pagamento aprovado:
+                  description: Pagamento aprovado
+                  value:
+                    id: 10
+                    canalPedido: APP
+                    status: EM_PREPARO
+                    total: 25.0
+                    criadoEm: 2026-10-09T10:00:00
+                    itens:
+                    - produtoId: 1
+                      nomeProduto: Tapioca de Queijo Coalho
+                      quantidade: 2
+                      precoUnitario: 12.5
+                      subtotal: 25.0
+                    pagamento:
+                      status: APROVADO
+                      formaPagamento: PIX
+                Pagamento recusado:
+                  description: Pagamento recusado
+                  value:
+                    id: 11
+                    canalPedido: TOTEM
+                    status: PAGAMENTO_RECUSADO
+                    total: 562.5
+                    criadoEm: 2026-10-09T10:05:00
+                    itens:
+                    - produtoId: 1
+                      nomeProduto: Tapioca de Queijo Coalho
+                      quantidade: 45
+                      precoUnitario: 12.5
+                      subtotal: 562.5
+                    pagamento:
+                      status: RECUSADO
+                      formaPagamento: CARTAO
+                Gateway indisponível:
+                  description: Gateway indisponível
+                  value:
+                    id: 12
+                    canalPedido: WEB
+                    status: AGUARDANDO_PAGAMENTO
+                    total: 12.5
+                    criadoEm: 2026-10-09T10:10:00
+                    itens:
+                    - produtoId: 1
+                      nomeProduto: Tapioca de Queijo Coalho
+                      quantidade: 1
+                      precoUnitario: 12.5
+                      subtotal: 12.5
+                    pagamento:
+                      status: PENDENTE
+                      formaPagamento: PAGAMENTO_INDISPONIVEL
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão ou cliente pedindo em nome de outro
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+                Pedido em nome de outro cliente:
+                  description: Pedido em nome de outro cliente
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Clientes só podem criar pedidos para si mesmos.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 0f1e2d3c-4b5a-4968-8776-5a4b3c2d1e0f
+        "404":
+          description: "Unidade, produto ou cliente inexistente"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Produto inexistente:
+                  description: Produto inexistente
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Produto não encontrado: id 999"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+        "409":
+          description: Regra de negócio violada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Estoque insuficiente:
+                  description: Estoque insuficiente
+                  value:
+                    error: ESTOQUE_INSUFICIENTE
+                    message: Estoque insuficiente para 'Tapioca de Queijo Coalho'.
+                    details:
+                    - field: "itens[0].quantidade"
+                      issue: "Disponível: 100"
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b6c
+                Produto fora de época:
+                  description: Produto fora de época
+                  value:
+                    error: PRODUTO_FORA_DE_EPOCA
+                    message: O produto 'Canjica Junina' é sazonal e não está disponível
+                      hoje.
+                    details:
+                    - field: "itens[0].produtoId"
+                      issue: Disponível de 01/06/2026 a 31/07/2026
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3a4b5c6d-7e8f-4a9b-8c0d-1e2f3a4b5c6d
+                clienteId não é cliente:
+                  description: clienteId não é cliente
+                  value:
+                    error: CLIENTE_INVALIDO
+                    message: O usuário informado não é um cliente ativo.
+                    details:
+                    - field: clienteId
+                      issue: Não é um cliente ativo
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4b5c6d7e-8f9a-4b0c-9d1e-2f3a4b5c6d7e
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /pedidos/{id}/pagamento/retentar:
+    post:
+      tags:
+      - Pedidos
+      summary: Tentar o pagamento novamente
+      description: "Perfis CLIENTE ou ATENDENTE. Só para pedidos AGUARDANDO_PAGAMENTO,\
+        \ ou seja, após falha de comunicação com o gateway. Não cria um novo pedido."
+      operationId: retentarPagamento
+      parameters:
+      - name: id
+        in: path
+        description: Id do pedido
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetentarPagamentoRequest"
+        required: true
+      responses:
+        "200":
+          description: Pagamento processado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PedidoResponse"
+              examples:
+                Pagamento aprovado:
+                  description: Pagamento aprovado
+                  value:
+                    id: 10
+                    canalPedido: APP
+                    status: EM_PREPARO
+                    total: 25.0
+                    criadoEm: 2026-10-09T10:00:00
+                    itens:
+                    - produtoId: 1
+                      nomeProduto: Tapioca de Queijo Coalho
+                      quantidade: 2
+                      precoUnitario: 12.5
+                      subtotal: 25.0
+                    pagamento:
+                      status: APROVADO
+                      formaPagamento: PIX
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "404":
+          description: Pedido inexistente ou de outro cliente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrado:
+                  description: Não encontrado
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Pedido não encontrado: id 999"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos/999
+                    requestId: 9b8a7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+        "409":
+          description: Pedido já teve o pagamento processado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Já processado:
+                  description: Já processado
+                  value:
+                    error: PEDIDO_JA_PROCESSADO
+                    message: "Este pedido já teve o pagamento processado (status atual:\
+                      \ EM_PREPARO). Não é possível retentar."
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos/12/pagamento/retentar
+                    requestId: 0b1c2d3e-4f5a-4b6c-9d7e-8f9a0b1c2d3e
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /estoque:
+    get:
+      tags:
+      - Estoque
+      summary: Consultar estoque da unidade
+      description: "Perfis ATENDENTE, GERENTE ou ADMIN. Listagem paginada do saldo\
+        \ por produto."
+      operationId: listarPorUnidade
+      parameters:
+      - name: unidadeId
+        in: query
+        description: Id da unidade
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: page
+        in: query
+        description: "Página, começando em 1"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+        example: 1
+      - name: limit
+        in: query
+        description: "Itens por página, de 1 a 100"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+        example: 10
+      - name: sort
+        in: query
+        description: "Ordenação: campo ou campo,asc|desc. Campos: id, quantidade"
+        required: false
+        schema:
+          type: string
+        example: "quantidade,asc"
+      responses:
+        "200":
+          description: Página de estoque
+          content:
+            application/json:
+              examples:
+                Estoque:
+                  description: Estoque
+                  value:
+                    itens:
+                    - id: 1
+                      unidadeId: 1
+                      produtoId: 1
+                      nomeProduto: Tapioca de Queijo Coalho
+                      quantidade: 98
+                    - id: 2
+                      unidadeId: 1
+                      produtoId: 2
+                      nomeProduto: Cuscuz com Carne de Sol
+                      quantidade: 100
+                    page: 1
+                    limit: 2
+                    totalItens: 7
+                    totalPaginas: 4
+        "400":
+          description: Paginação ou ordenação inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                page inválido:
+                  description: page inválido
+                  value:
+                    error: PARAMETRO_INVALIDO
+                    message: A página deve ser maior ou igual a 1.
+                    details:
+                    - field: page
+                      issue: A página deve ser maior ou igual a 1.
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /produtos
+                    requestId: 8b9c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "404":
+          description: Unidade inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrada:
+                  description: Não encontrada
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Unidade não encontrada: id 99"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /unidades/99/cardapio
+                    requestId: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+    post:
+      tags:
+      - Estoque
+      summary: Cadastrar estoque de um produto na unidade
+      description: Perfis GERENTE ou ADMIN. Cada unidade tem no máximo um registro
+        de estoque por produto. Unidades REDUZIDA não aceitam produtos da categoria
+        Pratos Quentes.
+      operationId: criar_3
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstoqueRequest"
+        required: true
+      responses:
+        "201":
+          description: Estoque cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstoqueResponse"
+              examples:
+                Estoque:
+                  description: Estoque
+                  value:
+                    id: 1
+                    unidadeId: 1
+                    produtoId: 1
+                    nomeProduto: Tapioca de Queijo Coalho
+                    quantidade: 150
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "404":
+          description: Unidade ou produto inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrado:
+                  description: Não encontrado
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Produto não encontrado: id 999"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+        "409":
+          description: Regra de negócio violada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Estoque já existe:
+                  description: Estoque já existe
+                  value:
+                    error: ESTOQUE_JA_EXISTE
+                    message: Já existe registro de estoque para este produto nesta
+                      unidade.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /estoque
+                    requestId: 6d7e8f9a-0b1c-4d2e-9f3a-4b5c6d7e8f9a
+                Unidade reduzida:
+                  description: Unidade reduzida
+                  value:
+                    error: UNIDADE_SEM_SUPORTE
+                    message: Unidades do tipo REDUZIDA não podem oferecer produtos
+                      da categoria 'Pratos Quentes' (requer cozinha completa).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /estoque
+                    requestId: 7e8f9a0b-1c2d-4e3f-8a4b-5c6d7e8f9a0b
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /auth/login:
+    post:
+      tags:
+      - Autenticação
+      summary: Autenticar e obter token JWT
+      description: "Público. Devolve o accessToken a ser informado no botão Authorize\
+        \ (sem a palavra Bearer). Usuários do seed: admin@raizes.com, gerente@raizes.com,\
+        \ atendente@raizes.com e cliente@raizes.com, todos com a senha Senha@123."
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: Autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+              examples:
+                Login:
+                  description: Login
+                  value:
+                    accessToken: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjbGllbnRlQHJhaXplcy5jb20ifQ.assinatura
+                    tokenType: Bearer
+                    expiresIn: 3600
+                    user:
+                      id: 4
+                      nome: Cliente Demo
+                      perfil: CLIENTE
+        "401":
+          description: E-mail ou senha inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Credenciais inválidas:
+                  description: Credenciais inválidas
+                  value:
+                    error: CREDENCIAIS_INVALIDAS
+                    message: E-mail ou senha inválidos.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /auth/login
+                    requestId: 8a6b0c1d-2e3f-4a5b-8c7d-9e0f1a2b3c4d
+        "422":
+          description: E-mail ou senha ausentes ou malformados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: email
+                      issue: deve ser um endereço de e-mail bem formado
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /usuarios
+                    requestId: 6f7a8b9c-0d1e-4f2a-8b3c-4d5e6f7a8b9c
+      security: []
+  /usuarios/me/consentimento:
+    patch:
+      tags:
+      - Usuários
+      summary: Conceder ou revogar o consentimento de fidelização
+      description: Perfil CLIENTE. Registra a decisão do titular com data e hora e
+        gera CONSENTIMENTO_CONCEDIDO ou CONSENTIMENTO_REVOGADO na auditoria.
+      operationId: atualizarConsentimento
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentimentoRequest"
+        required: true
+      responses:
+        "200":
+          description: Consentimento atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioDetalheResponse"
+              examples:
+                Meus dados:
+                  description: Meus dados
+                  value:
+                    id: 5
+                    nome: Maria Silva
+                    email: maria@exemplo.com
+                    perfil: CLIENTE
+                    criadoEm: 2026-10-09T10:00:00
+                    consentimentoFidelizacao: true
+                    consentimentoFidelizacaoEm: 2026-10-09T10:00:00
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /pedidos/{id}/status:
+    patch:
+      tags:
+      - Pedidos
+      summary: Atualizar status do pedido
+      description: "Perfis ATENDENTE, GERENTE ou ADMIN. Transições permitidas: EM_PREPARO\
+        \ para PRONTO ou CANCELADO; PRONTO para ENTREGUE ou CANCELADO; AGUARDANDO_PAGAMENTO\
+        \ para CANCELADO. EM_PREPARO e PAGAMENTO_RECUSADO são definidos apenas pelo\
+        \ retorno do pagamento. Mudanças de status e cancelamentos são auditados."
+      operationId: atualizarStatus
+      parameters:
+      - name: id
+        in: path
+        description: Id do pedido
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AtualizarStatusRequest"
+        required: true
+      responses:
+        "200":
+          description: Status atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PedidoResponse"
+              examples:
+                Pedido pronto:
+                  description: Pedido pronto
+                  value:
+                    id: 10
+                    canalPedido: APP
+                    status: PRONTO
+                    total: 25.0
+                    criadoEm: 2026-10-09T10:00:00
+                    itens:
+                    - produtoId: 1
+                      nomeProduto: Tapioca de Queijo Coalho
+                      quantidade: 2
+                      precoUnitario: 12.5
+                      subtotal: 25.0
+                    pagamento:
+                      status: APROVADO
+                      formaPagamento: PIX
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "404":
+          description: Pedido inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrado:
+                  description: Não encontrado
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Pedido não encontrado: id 999"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos/999
+                    requestId: 9b8a7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+        "409":
+          description: Transição de status não permitida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Transição inválida:
+                  description: Transição inválida
+                  value:
+                    error: TRANSICAO_INVALIDA
+                    message: Não é possível mudar o status de EM_PREPARO para ENTREGUE.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos/10/status
+                    requestId: 8f9a0b1c-2d3e-4f4a-9b5c-6d7e8f9a0b1c
+                Reservada ao sistema:
+                  description: Reservada ao sistema
+                  value:
+                    error: TRANSICAO_RESERVADA_AO_SISTEMA
+                    message: O status EM_PREPARO só pode ser definido automaticamente
+                      pelo retorno do gateway de pagamento.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos/12/status
+                    requestId: 9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /estoque/{id}/movimentar:
+    patch:
+      tags:
+      - Estoque
+      summary: Movimentar estoque (entrada ou saída)
+      description: "Perfis ATENDENTE, GERENTE ou ADMIN. ENTRADA soma e SAIDA subtrai;\
+        \ a saída nunca deixa o saldo negativo. Cada movimentação é registrada na\
+        \ auditoria."
+      operationId: movimentar
+      parameters:
+      - name: id
+        in: path
+        description: Id do registro de estoque
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MovimentacaoEstoqueRequest"
+        required: true
+      responses:
+        "200":
+          description: Saldo atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstoqueResponse"
+              examples:
+                Estoque:
+                  description: Estoque
+                  value:
+                    id: 1
+                    unidadeId: 1
+                    produtoId: 1
+                    nomeProduto: Tapioca de Queijo Coalho
+                    quantidade: 150
+        "400":
+          description: Corpo malformado ou valor de enum inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                JSON inválido:
+                  description: JSON inválido
+                  value:
+                    error: REQUISICAO_INVALIDA
+                    message: Corpo da requisição malformado ou com valor não aceito
+                      (verifique enums como canalPedido).
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+        "404":
+          description: Registro de estoque inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrado:
+                  description: Não encontrado
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Pedido não encontrado: id 999"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos/999
+                    requestId: 9b8a7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+        "409":
+          description: Saldo insuficiente para a saída
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Estoque insuficiente:
+                  description: Estoque insuficiente
+                  value:
+                    error: ESTOQUE_INSUFICIENTE
+                    message: "Estoque insuficiente para o produto Tapioca de Queijo\
+                      \ Coalho. Disponível: 100"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /estoque/1/movimentar
+                    requestId: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+        "422":
+          description: Campos obrigatórios ausentes ou com formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Validação:
+                  description: Validação
+                  value:
+                    error: VALIDACAO_FALHOU
+                    message: Um ou mais campos são inválidos.
+                    details:
+                    - field: canalPedido
+                      issue: não deve ser nulo
+                    - field: "itens[0].quantidade"
+                      issue: deve ser maior que ou igual à 1
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a
+  /usuarios/me:
+    get:
+      tags:
+      - Usuários
+      summary: Consultar meus dados (titular)
+      description: Qualquer perfil autenticado. Retorna os dados pessoais do próprio
+        usuário. Cada acesso é registrado na auditoria como DADOS_PESSOAIS_ACESSADOS.
+      operationId: meusDados
+      responses:
+        "200":
+          description: Dados do titular
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioDetalheResponse"
+              examples:
+                Meus dados:
+                  description: Meus dados
+                  value:
+                    id: 5
+                    nome: Maria Silva
+                    email: maria@exemplo.com
+                    perfil: CLIENTE
+                    criadoEm: 2026-10-09T10:00:00
+                    consentimentoFidelizacao: true
+                    consentimentoFidelizacaoEm: 2026-10-09T10:00:00
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+    delete:
+      tags:
+      - Usuários
+      summary: Excluir meus dados (anonimização)
+      description: "Perfil CLIENTE. Remove nome e e-mail do cadastro e invalida a\
+        \ senha, impedindo novos logins. Os pedidos são mantidos (obrigação fiscal\
+        \ e relatórios) e o e-mail no histórico de auditoria é trocado por um pseudô\
+        nimo."
+      operationId: excluirMeusDados
+      responses:
+        "204":
+          description: Dados pessoais anonimizados
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+  /unidades/{id}:
+    get:
+      tags:
+      - Unidades
+      summary: Consultar unidade
+      description: Público.
+      operationId: buscar_1
+      parameters:
+      - name: id
+        in: path
+        description: Id da unidade
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Unidade encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnidadeResponse"
+              examples:
+                Unidade:
+                  description: Unidade
+                  value:
+                    id: 1
+                    nome: Raízes Recife Centro
+                    cidade: Recife
+                    estado: PE
+                    tipo: COMPLETA
+        "404":
+          description: Unidade inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrada:
+                  description: Não encontrada
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Unidade não encontrada: id 99"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /unidades/99/cardapio
+                    requestId: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+      security: []
+  /unidades/{id}/cardapio:
+    get:
+      tags:
+      - Unidades
+      summary: Consultar cardápio da unidade
+      description: "Público. Produtos com estoque positivo na unidade e dentro do\
+        \ período de disponibilidade: produtos sazonais fora de época não aparecem.\
+        \ Lista curta e limitada a uma unidade, por isso sem paginação."
+      operationId: cardapio
+      parameters:
+      - name: id
+        in: path
+        description: Id da unidade
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Cardápio da unidade
+          content:
+            application/json:
+              examples:
+                Cardápio:
+                  description: Cardápio
+                  value:
+                  - produtoId: 1
+                    nome: Tapioca de Queijo Coalho
+                    descricao: Tapioca recheada com queijo coalho
+                    preco: 12.5
+                    categoria: Salgados
+                    quantidadeDisponivel: 100
+                  - produtoId: 4
+                    nome: Suco de Caju
+                    descricao: Suco natural de caju 400ml
+                    preco: 8.5
+                    categoria: Bebidas
+                    quantidadeDisponivel: 100
+        "404":
+          description: Unidade inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrada:
+                  description: Não encontrada
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Unidade não encontrada: id 99"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /unidades/99/cardapio
+                    requestId: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+      security: []
+  /relatorios/vendas:
+    get:
+      tags:
+      - Relatórios
+      summary: Relatório de vendas para a matriz
+      description: "Perfis GERENTE ou ADMIN. Considera apenas vendas efetivas: pagamento\
+        \ aprovado e pedido não cancelado. Datas inclusivas no formato yyyy-MM-dd,\
+        \ período máximo de 366 dias. A região corresponde ao estado (UF) da unidade."
+      operationId: vendas
+      parameters:
+      - name: inicio
+        in: query
+        description: "Data inicial, inclusiva (yyyy-MM-dd)"
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2026-10-01
+      - name: fim
+        in: query
+        description: "Data final, inclusiva (yyyy-MM-dd)"
+        required: true
+        schema:
+          type: string
+          format: date
+        example: 2026-10-31
+      responses:
+        "200":
+          description: Relatório gerado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelatorioVendasResponse"
+              examples:
+                Outubro/2026:
+                  description: Outubro/2026
+                  value:
+                    inicio: 2026-10-01
+                    fim: 2026-10-31
+                    totalPedidos: 4
+                    faturamentoTotal: 98.7
+                    vendasPorUnidade:
+                    - unidadeId: 1
+                      unidade: Raízes Recife Centro
+                      estado: PE
+                      quantidadePedidos: 2
+                      faturamento: 62.8
+                    - unidadeId: 2
+                      unidade: Raízes Quiosque Shopping
+                      estado: PE
+                      quantidadePedidos: 1
+                      faturamento: 18.9
+                    - unidadeId: 3
+                      unidade: Raízes Fortaleza Aldeota
+                      estado: CE
+                      quantidadePedidos: 1
+                      faturamento: 17.0
+                    vendasPorEstado:
+                    - estado: PE
+                      quantidadePedidos: 3
+                      faturamento: 81.7
+                    - estado: CE
+                      quantidadePedidos: 1
+                      faturamento: 17.0
+                    produtosMaisVendidos:
+                    - produtoId: 2
+                      produto: Cuscuz com Carne de Sol
+                      quantidadeVendida: 3
+                      faturamento: 56.7
+                    - produtoId: 1
+                      produto: Tapioca de Queijo Coalho
+                      quantidadeVendida: 2
+                      faturamento: 25.0
+        "400":
+          description: Período inválido ou parâmetro ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Período invertido:
+                  description: Período invertido
+                  value:
+                    error: PARAMETRO_INVALIDO
+                    message: A data final deve ser igual ou posterior à data inicial.
+                    details:
+                    - field: fim
+                      issue: A data final deve ser igual ou posterior à data inicial.
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 0d1e2f3a-4b5c-4d6e-9f7a-8b9c0d1e2f3a
+                Parâmetro ausente:
+                  description: Parâmetro ausente
+                  value:
+                    error: PARAMETRO_AUSENTE
+                    message: Parâmetro obrigatório não informado.
+                    details:
+                    - field: inicio
+                      issue: Obrigatório
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 1e2f3a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+  /pedidos/{id}:
+    get:
+      tags:
+      - Pedidos
+      summary: Consultar pedido
+      description: "Qualquer perfil autenticado. O perfil CLIENTE só consulta os pró\
+        prios pedidos: o pedido de outro cliente retorna 404, sem revelar que existe."
+      operationId: buscar_2
+      parameters:
+      - name: id
+        in: path
+        description: Id do pedido
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Pedido encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PedidoResponse"
+              examples:
+                Pedido:
+                  description: Pedido
+                  value:
+                    id: 10
+                    canalPedido: APP
+                    status: EM_PREPARO
+                    total: 25.0
+                    criadoEm: 2026-10-09T10:00:00
+                    itens:
+                    - produtoId: 1
+                      nomeProduto: Tapioca de Queijo Coalho
+                      quantidade: 2
+                      precoUnitario: 12.5
+                      subtotal: 25.0
+                    pagamento:
+                      status: APROVADO
+                      formaPagamento: PIX
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "404":
+          description: Pedido inexistente ou de outro cliente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Não encontrado:
+                  description: Não encontrado
+                  value:
+                    error: RECURSO_NAO_ENCONTRADO
+                    message: "Pedido não encontrado: id 999"
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos/999
+                    requestId: 9b8a7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+  /auditoria:
+    get:
+      tags:
+      - Auditoria
+      summary: Consultar auditoria de um registro
+      description: "Perfis GERENTE ou ADMIN. Ações registradas: PEDIDO_CRIADO, PAGAMENTO_PROCESSADO,\
+        \ PAGAMENTO_RETENTADO, STATUS_ATUALIZADO, PEDIDO_CANCELADO, ESTOQUE_MOVIMENTADO,\
+        \ DADOS_PESSOAIS_ACESSADOS, CONSENTIMENTO_CONCEDIDO, CONSENTIMENTO_REVOGADO\
+        \ e USUARIO_ANONIMIZADO."
+      operationId: consultar
+      parameters:
+      - name: entidade
+        in: query
+        description: "Tipo do registro auditado: Pedido, Estoque ou Usuario"
+        required: true
+        schema:
+          type: string
+        example: Pedido
+      - name: entidadeId
+        in: query
+        description: Id do registro auditado
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: page
+        in: query
+        description: "Página, começando em 1"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+        example: 1
+      - name: limit
+        in: query
+        description: "Itens por página, de 1 a 100"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+        example: 10
+      - name: sort
+        in: query
+        description: "Ordenação: campo ou campo,asc|desc. Campos: id, criadoEm"
+        required: false
+        schema:
+          type: string
+        example: "id,desc"
+      responses:
+        "200":
+          description: Página de registros de auditoria
+          content:
+            application/json:
+              examples:
+                Auditoria de um pedido:
+                  description: Auditoria de um pedido
+                  value:
+                    itens:
+                    - id: 21
+                      usuarioEmail: atendente@raizes.com
+                      acao: STATUS_ATUALIZADO
+                      entidade: Pedido
+                      entidadeId: 10
+                      detalhes: de=EM_PREPARO; para=PRONTO
+                      criadoEm: 2026-10-09T10:20:00
+                    - id: 18
+                      usuarioEmail: cliente@raizes.com
+                      acao: PEDIDO_CRIADO
+                      entidade: Pedido
+                      entidadeId: 10
+                      detalhes: canal=APP; total=25.00; clienteId=4
+                      criadoEm: 2026-10-09T10:00:00
+                    page: 1
+                    limit: 10
+                    totalItens: 2
+                    totalPaginas: 1
+        "400":
+          description: Paginação ou ordenação inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                page inválido:
+                  description: page inválido
+                  value:
+                    error: PARAMETRO_INVALIDO
+                    message: A página deve ser maior ou igual a 1.
+                    details:
+                    - field: page
+                      issue: A página deve ser maior ou igual a 1.
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /produtos
+                    requestId: 8b9c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+        "401":
+          description: "Token ausente, inválido ou expirado"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Sem token:
+                  description: Sem token
+                  value:
+                    error: NAO_AUTENTICADO
+                    message: Autenticação necessária. Envie um token válido no header
+                      Authorization.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /pedidos
+                    requestId: 3f1c2a9e-7b4d-4c1a-9f2e-1a2b3c4d5e6f
+        "403":
+          description: Perfil sem permissão para a operação
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErroResponse"
+              examples:
+                Perfil sem permissão:
+                  description: Perfil sem permissão
+                  value:
+                    error: ACESSO_NEGADO
+                    message: Seu perfil não possui permissão para esta operação.
+                    details: []
+                    timestamp: 2026-10-09T13:00:00Z
+                    path: /relatorios/vendas
+                    requestId: 5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f
+components:
+  schemas:
+    ProdutoRequest:
+      type: object
+      properties:
+        nome:
+          type: string
+          example: Cuscuz de Milho com Ovo
+          minLength: 1
+        descricao:
+          type: string
+          example: Cuscuz nordestino com ovo e manteiga de garrafa
+        preco:
+          type: number
+          example: 14.9
+          minimum: 0.0
+        categoria:
+          type: string
+          example: Salgados
+        disponivelDe:
+          type: string
+          format: date
+          description: Opcional. Início da disponibilidade de um produto sazonal (yyyy-MM-dd)
+        disponivelAte:
+          type: string
+          format: date
+          description: Opcional. Fim da disponibilidade de um produto sazonal (yyyy-MM-dd)
+      required:
+      - nome
+      - preco
+    ProdutoResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nome:
+          type: string
+        descricao:
+          type: string
+        preco:
+          type: number
+        categoria:
+          type: string
+        disponivelDe:
+          type: string
+          format: date
+        disponivelAte:
+          type: string
+          format: date
+    CampoInvalido:
+      type: object
+      properties:
+        field:
+          type: string
+        issue:
+          type: string
+    ErroResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampoInvalido"
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string
+        requestId:
+          type: string
+    CadastroUsuarioRequest:
+      type: object
+      properties:
+        nome:
+          type: string
+          example: Maria Silva
+          minLength: 1
+        email:
+          type: string
+          format: email
+          example: maria@exemplo.com
+          minLength: 1
+        senha:
+          type: string
+          description: Mínimo de 8 caracteres
+          example: Senha@123
+          maxLength: 2147483647
+          minLength: 8
+        aceitaFidelizacao:
+          type: boolean
+          description: Opcional. Consentimento para uso dos dados no programa de fidelização
+          example: true
+      required:
+      - email
+      - nome
+      - senha
+    UsuarioResumoDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nome:
+          type: string
+        perfil:
+          type: string
+    UnidadeRequest:
+      type: object
+      properties:
+        nome:
+          type: string
+          example: Raízes Natal Ponta Negra
+          minLength: 1
+        cidade:
+          type: string
+          example: Natal
+          minLength: 1
+        estado:
+          type: string
+          example: RN
+          minLength: 1
+        tipo:
+          type: string
+          enum:
+          - COMPLETA
+          - REDUZIDA
+          example: COMPLETA
+          minLength: 1
+          pattern: COMPLETA|REDUZIDA
+      required:
+      - cidade
+      - estado
+      - nome
+      - tipo
+    UnidadeResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nome:
+          type: string
+        cidade:
+          type: string
+        estado:
+          type: string
+        tipo:
+          type: string
+    PedidoItemRequest:
+      type: object
+      properties:
+        produtoId:
+          type: integer
+          format: int64
+          example: 1
+        quantidade:
+          type: integer
+          format: int32
+          example: 2
+          minimum: 1
+      required:
+      - produtoId
+    PedidoRequest:
+      type: object
+      properties:
+        unidadeId:
+          type: integer
+          format: int64
+          example: 1
+        canalPedido:
+          type: string
+          enum:
+          - APP
+          - TOTEM
+          - BALCAO
+          - PICKUP
+          - WEB
+          example: APP
+        clienteId:
+          type: integer
+          format: int64
+          description: Opcional. Usado pelo ATENDENTE para registrar o pedido em nome
+            de um cliente cadastrado
+          example: 4
+        itens:
+          type: array
+          items:
+            $ref: "#/components/schemas/PedidoItemRequest"
+          minItems: 1
+        formaPagamento:
+          type: string
+          description: "Mock: PAGAMENTO_INDISPONIVEL simula falha de comunicação com\
+            \ o gateway"
+          example: PIX
+          minLength: 1
+      required:
+      - canalPedido
+      - formaPagamento
+      - itens
+      - unidadeId
+    ItemPedidoResponse:
+      type: object
+      properties:
+        produtoId:
+          type: integer
+          format: int64
+        nomeProduto:
+          type: string
+        quantidade:
+          type: integer
+          format: int32
+        precoUnitario:
+          type: number
+        subtotal:
+          type: number
+    PagamentoResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        formaPagamento:
+          type: string
+    PedidoResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        canalPedido:
+          type: string
+          enum:
+          - APP
+          - TOTEM
+          - BALCAO
+          - PICKUP
+          - WEB
+        status:
+          type: string
+          enum:
+          - AGUARDANDO_PAGAMENTO
+          - EM_PREPARO
+          - PRONTO
+          - ENTREGUE
+          - CANCELADO
+          - PAGAMENTO_RECUSADO
+        total:
+          type: number
+        criadoEm:
+          type: string
+          format: date-time
+        itens:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemPedidoResponse"
+        pagamento:
+          $ref: "#/components/schemas/PagamentoResponse"
+    RetentarPagamentoRequest:
+      type: object
+      properties:
+        formaPagamento:
+          type: string
+          example: PIX
+          minLength: 1
+      required:
+      - formaPagamento
+    EstoqueRequest:
+      type: object
+      properties:
+        unidadeId:
+          type: integer
+          format: int64
+          example: 3
+        produtoId:
+          type: integer
+          format: int64
+          example: 7
+        quantidadeInicial:
+          type: integer
+          format: int32
+          example: 20
+          minimum: 0
+      required:
+      - produtoId
+      - unidadeId
+    EstoqueResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        unidadeId:
+          type: integer
+          format: int64
+        produtoId:
+          type: integer
+          format: int64
+        nomeProduto:
+          type: string
+        quantidade:
+          type: integer
+          format: int32
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: cliente@raizes.com
+          minLength: 1
+        senha:
+          type: string
+          example: Senha@123
+          minLength: 1
+      required:
+      - email
+      - senha
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+        user:
+          $ref: "#/components/schemas/UsuarioResumoDTO"
+    ConsentimentoRequest:
+      type: object
+      properties:
+        aceitaFidelizacao:
+          type: boolean
+          description: true concede e false revoga o consentimento
+          example: false
+      required:
+      - aceitaFidelizacao
+    UsuarioDetalheResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nome:
+          type: string
+        email:
+          type: string
+        perfil:
+          type: string
+        criadoEm:
+          type: string
+          format: date-time
+        consentimentoFidelizacao:
+          type: boolean
+        consentimentoFidelizacaoEm:
+          type: string
+          format: date-time
+    AtualizarStatusRequest:
+      type: object
+      properties:
+        novoStatus:
+          type: string
+          enum:
+          - AGUARDANDO_PAGAMENTO
+          - EM_PREPARO
+          - PRONTO
+          - ENTREGUE
+          - CANCELADO
+          - PAGAMENTO_RECUSADO
+          example: PRONTO
+      required:
+      - novoStatus
+    MovimentacaoEstoqueRequest:
+      type: object
+      properties:
+        tipo:
+          type: string
+          enum:
+          - ENTRADA
+          - SAIDA
+          example: ENTRADA
+        quantidade:
+          type: integer
+          format: int32
+          example: 10
+          minimum: 1
+      required:
+      - tipo
+    ProdutoMaisVendido:
+      type: object
+      properties:
+        produtoId:
+          type: integer
+          format: int64
+        produto:
+          type: string
+        quantidadeVendida:
+          type: integer
+          format: int64
+        faturamento:
+          type: number
+    RelatorioVendasResponse:
+      type: object
+      properties:
+        inicio:
+          type: string
+          format: date
+        fim:
+          type: string
+          format: date
+        totalPedidos:
+          type: integer
+          format: int64
+        faturamentoTotal:
+          type: number
+        vendasPorUnidade:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendaPorUnidade"
+        vendasPorEstado:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendaPorEstado"
+        produtosMaisVendidos:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProdutoMaisVendido"
+    VendaPorEstado:
+      type: object
+      properties:
+        estado:
+          type: string
+        quantidadePedidos:
+          type: integer
+          format: int64
+        faturamento:
+          type: number
+    VendaPorUnidade:
+      type: object
+      properties:
+        unidadeId:
+          type: integer
+          format: int64
+        unidade:
+          type: string
+        estado:
+          type: string
+        quantidadePedidos:
+          type: integer
+          format: int64
+        faturamento:
+          type: number
+  securitySchemes:
+    bearerAuth:
+      type: http
+      name: bearerAuth
+      scheme: bearer
+      bearerFormat: JWT
