@@ -272,4 +272,18 @@ Todas as falhas seguem o mesmo formato:
 
 ---
 
+## Documentação adicional
+
+| Item | Arquivo |
+|---|---|
+| Contrato OpenAPI (cópia versionada) | [`docs/openapi.yaml`](docs/openapi.yaml) |
+| DER | [`docs/diagramas/der.png`](docs/diagramas/der.png) |
+| Diagrama de casos de uso | [`docs/diagramas/casos-de-uso.png`](docs/diagramas/casos-de-uso.png) |
+| Diagrama de classes | [`docs/diagramas/classes.png`](docs/diagramas/classes.png) |
+| Diagrama de sequência | [`docs/diagramas/sequencia.png`](docs/diagramas/sequencia.png) |
+| Diagrama de estados do pedido | [`docs/diagramas/estados.png`](docs/diagramas/estados.png) |
+
+Para ver o contrato no Swagger sem rodar a API, abra https://editor.swagger.io, vá em **File → Import URL** e cole:
+`https://raw.githubusercontent.com/l-felipesp/API-Raizesdonordeste/main/docs/openapi.yaml`
+
 Luiz Felipe Silva de Paula — RU 4930873
